@@ -10,6 +10,7 @@ import (
 )
 
 const WS_PORT = ":1234"
+var pool = newPool()
 
 func newPool() *redis.Pool {
   return &redis.Pool{
@@ -37,7 +38,6 @@ func main() {
 
 func Reader(ws *websocket.Conn) {
     var err error
-    pool := newPool()
 
     for {
         var msg string
