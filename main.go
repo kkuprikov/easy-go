@@ -1,16 +1,26 @@
 package main
 
 import (
-    "golang.org/x/net/websocket"
+    "github.com/gorilla/websocket"
     "github.com/gomodule/redigo/redis"
     "fmt"
+    "strings"
     "log"
     "net/http"
-    "net/url"
 )
 
-const WS_PORT = ":1234"
-var pool = newPool()
+type message struct {
+  id string
+}
+
+const (
+  WS_PORT = ":1234"
+)
+
+var upgrader = websocket.Upgrader{
+    ReadBufferSize:  1024,
+    WriteBufferSize: 1024,
+}
 
 func newPool() *redis.Pool {
   return &redis.Pool{
@@ -26,36 +36,48 @@ func newPool() *redis.Pool {
   }
 }
 
+var pool = newPool()
 
 func main() {
 
-    http.Handle("/", websocket.Handler(Reader))
+    http.HandleFunc("/", func (w http.ResponseWriter, r *http.Request) {
+      upgrader.CheckOrigin = func(r *http.Request) bool {
+        return true
+      }
+      conn, err := upgrader.Upgrade(w, r, nil)
+      if err != nil {
+          log.Println(err)
+          return
+      }
+      go Reader(conn, r.URL.Path)
+    })
 
     if err := http.ListenAndServe(WS_PORT, nil); err != nil {
         log.Fatal("ListenAndServe:", err)
     }
 }
 
-func Reader(ws *websocket.Conn) {
-    var err error
-
+func Reader(ws *websocket.Conn, path string) {
+    var conn = pool.Get()
     for {
-        var msg string
+        var msg message
 
-        if err = websocket.Message.Receive(ws, &msg); err != nil {
-            fmt.Println("Can't receive")
-            break
+        if err := ws.ReadJSON(&msg); err != nil {
+          fmt.Println(err)
+          break
         }
 
-        fmt.Println("Received back from client: " + msg)
-        // fmt.Println(reflect.TypeOf(ws.Request().URL))
-        StoreData(ws.Request().URL, pool.Get(), msg)
+        fmt.Println("Received back from client: " + msg.id)
+        
+        StoreData(path, pool.Get(), msg)
     }
+    conn.Close()
 }
 
-func StoreData(url *url.URL, c redis.Conn, msg string) {
-  c.Do("SET", "foo", "bar")
-  res, _ := redis.String(c.Do("GET", "foo"))
-  fmt.Println(string(res))
-  defer c.Close()
+func StoreData(path string, conn redis.Conn, msg message) {
+  parts := strings.Split(path, "/")
+  endpoint := parts[1]
+  jwt := parts[2]
+  fmt.Println(endpoint)
+  fmt.Println(jwt)
 }
