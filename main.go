@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -11,7 +12,8 @@ import (
 )
 
 type message struct {
-	ID string
+	ID    string
+	Event string
 }
 
 const (
@@ -44,19 +46,26 @@ func newPool() *redis.Pool {
 
 var pool = newPool()
 
+func HomePage(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprintf(w, "Home Page")
+}
+
+func Handler(w http.ResponseWriter, r *http.Request) {
+	upgrader.CheckOrigin = func(r *http.Request) bool {
+		return true
+	}
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	go Reader(conn, r.URL.Path)
+}
+
 func main() {
 
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		upgrader.CheckOrigin = func(r *http.Request) bool {
-			return true
-		}
-		conn, err := upgrader.Upgrade(w, r, nil)
-		if err != nil {
-			log.Println(err)
-			return
-		}
-		go Reader(conn, r.URL.Path)
-	})
+	http.Handle("/", http.FileServer(http.Dir("./static")))
+	http.HandleFunc("/ws", Handler)
 
 	if err := http.ListenAndServe(WS_PORT, nil); err != nil {
 		log.Fatal("ListenAndServe:", err)
@@ -80,10 +89,20 @@ func Reader(ws *websocket.Conn, path string) {
 	conn.Close()
 }
 
-func StoreData(path string, conn redis.Conn, msg message) {
+func StoreData(path string, conn redis.Conn, input message) {
 	parts := strings.Split(path, "/")
 	endpoint := parts[1]
 	jwt := parts[2]
+
+	queue_name := prefix_to_queue[input.Event]
+	if queue_name == "" {
+		queue_name = prefix_to_queue["default"]
+	}
+
+	msg, _ := json.Marshal(input)
+	conn.Do("LPUSH", queue_name, msg)
+
 	fmt.Println(endpoint)
 	fmt.Println(jwt)
+	fmt.Println(conn.Do("LLEN", queue_name))
 }
