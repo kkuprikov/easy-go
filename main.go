@@ -5,16 +5,11 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"strings"
 
 	"github.com/gomodule/redigo/redis"
 	"github.com/gorilla/websocket"
+	"github.com/julienschmidt/httprouter"
 )
-
-type message struct {
-	ID    string
-	Event string
-}
 
 const (
 	WS_PORT = ":1234"
@@ -30,27 +25,9 @@ var upgrader = websocket.Upgrader{
 	WriteBufferSize: 1024,
 }
 
-func newPool() *redis.Pool {
-	return &redis.Pool{
-		MaxIdle:   80,
-		MaxActive: 12000, // max number of connections
-		Dial: func() (redis.Conn, error) {
-			c, err := redis.Dial("tcp", ":6379")
-			if err != nil {
-				panic(err.Error())
-			}
-			return c, err
-		},
-	}
-}
+var pool = NewPool()
 
-var pool = newPool()
-
-func HomePage(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "Home Page")
-}
-
-func Handler(w http.ResponseWriter, r *http.Request) {
+func WsHandler(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
 	upgrader.CheckOrigin = func(r *http.Request) bool {
 		return true
 	}
@@ -59,42 +36,68 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 		log.Println(err)
 		return
 	}
-	go Reader(conn, r.URL.Path)
+	go Reader(conn, params.ByName("jwt"))
+}
+
+func HomePage(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	http.ServeFile(w, r, "./static/index.html")
 }
 
 func main() {
+	router := httprouter.New()
+	router.GET("/", HomePage)
 
-	http.Handle("/", http.FileServer(http.Dir("./static")))
-	http.HandleFunc("/ws", Handler)
+	router.GET("/ws/send_stat/:jwt", WsHandler)
 
-	if err := http.ListenAndServe(WS_PORT, nil); err != nil {
+	if err := http.ListenAndServe(WS_PORT, router); err != nil {
 		log.Fatal("ListenAndServe:", err)
 	}
 }
 
-func Reader(ws *websocket.Conn, path string) {
+func Reader(ws *websocket.Conn, jwtoken string) {
 	var conn = pool.Get()
 	for {
-		var msg message
+		var msg map[string]interface{}
 
 		if err := ws.ReadJSON(&msg); err != nil {
 			fmt.Println(err)
 			break
 		}
 
-		fmt.Println("Received back from client: " + msg.ID)
+		fmt.Println("Received from client: ", msg["id"])
 
-		StoreData(path, pool.Get(), msg)
+		data := CombineData(jwtoken, msg)
+		StoreData(pool.Get(), data)
 	}
 	conn.Close()
 }
 
-func StoreData(path string, conn redis.Conn, input message) {
-	parts := strings.Split(path, "/")
-	endpoint := parts[1]
-	jwt := parts[2]
+func CombineData(jwtoken string, input map[string]interface{}) map[string]interface{} {
+	var data map[string]interface{}
+	inputJSON := ParseJWT(jwtoken)
 
-	queue_name := prefix_to_queue[input.Event]
+	if err := json.Unmarshal(inputJSON, &data); err != nil {
+		fmt.Println(err)
+	}
+
+	fmt.Println(data)
+
+	for k, v := range data {
+		input[k] = v
+	}
+
+	return input
+}
+
+func StoreData(conn redis.Conn, input map[string]interface{}) {
+	var queue_name string
+
+	if event, ok := input["event"].(string); ok {
+		queue_name = prefix_to_queue[event]
+	} else {
+		fmt.Println("Type assertion failed: event is not a string", event)
+	}
+
 	if queue_name == "" {
 		queue_name = prefix_to_queue["default"]
 	}
@@ -102,7 +105,8 @@ func StoreData(path string, conn redis.Conn, input message) {
 	msg, _ := json.Marshal(input)
 	conn.Do("LPUSH", queue_name, msg)
 
-	fmt.Println(endpoint)
-	fmt.Println(jwt)
-	fmt.Println(conn.Do("LLEN", queue_name))
+	res, err := redis.String(conn.Do("LPOP", queue_name))
+	if err == nil {
+		fmt.Println(res)
+	}
 }

@@ -3,7 +3,8 @@
   <body>
     <script type="text/javascript">
       var sock = null;
-      var wsuri = "ws://127.0.0.1:1234/ws/send_stat/JWT2";
+      var wsuri =
+        "ws://127.0.0.1:1234/ws/send_stat/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdHJlYW1faWQiOiIxMjMifQ.BM_BJY7WytZ-fVb49P-kpUE0XcFZDcsvACxiV6KAHcM";
 
       window.onload = function() {
         console.log("onload");
@@ -30,7 +31,14 @@
     </script>
     <h1>WebSocket Echo Test</h1>
     <form>
-      <p>Message: <input id="message" type="text" value="Hello, world!" /></p>
+      <p>
+        Message:
+        <input
+          id="message"
+          type="text"
+          value='{"id": "123", "event": "heatmap"}'
+        />
+      </p>
     </form>
     <button onclick="send();">Send Message</button>
   </body>
