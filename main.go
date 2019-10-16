@@ -105,6 +105,7 @@ func StoreData(conn redis.Conn, input map[string]interface{}) {
 	msg, _ := json.Marshal(input)
 	conn.Do("LPUSH", queue_name, msg)
 
+	// Read for debug
 	res, err := redis.String(conn.Do("LPOP", queue_name))
 	if err == nil {
 		fmt.Println(res)
