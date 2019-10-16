@@ -1,4 +1,4 @@
-package main
+package wsgatherer
 
 import (
 	"encoding/json"
@@ -16,6 +16,7 @@ func hmacSecret() []byte {
 	if err != nil {
 		fmt.Println("Could not read secret file: ", secretPath)
 	}
+
 	return res
 }
 
@@ -30,13 +31,15 @@ func ParseJWT(tokenString string) []byte {
 		return hmacSecret(), nil
 	})
 	claims, ok := token.Claims.(jwt.MapClaims)
+
 	if ok && token.Valid {
 		fmt.Println("Stream Id from JWT: ", claims["stream_id"])
 	} else {
 		fmt.Println(err)
 	}
+
 	res, _ := json.Marshal(claims)
 	fmt.Println("Data from JWT to JSON", res)
-	return res
 
+	return res
 }

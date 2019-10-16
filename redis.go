@@ -1,4 +1,4 @@
-package main
+package wsgatherer
 
 import "github.com/gomodule/redigo/redis"
 
