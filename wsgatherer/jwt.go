@@ -39,7 +39,7 @@ func ParseJWT(tokenString string) []byte {
 	}
 
 	res, _ := json.Marshal(claims)
-	fmt.Println("Data from JWT to JSON", res)
+	fmt.Println("Data from JWT to JSON", string(res))
 
 	return res
 }
