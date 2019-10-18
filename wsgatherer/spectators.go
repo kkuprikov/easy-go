@@ -128,6 +128,7 @@ func spectatorsTotal() ([]byte, error) {
 	conn := redisConn()()
 
 	keys, err := redis.Strings(conn.Do("KEYS", "{realtime_api}spectators_*"))
+	conn.Close()
 
 	if err != nil {
 		fmt.Println("Redis connection error", err)
