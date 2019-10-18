@@ -84,10 +84,16 @@ func storeData(conn redis.Conn, input map[string]string) {
 		queue = queueDict["default"]
 	}
 
-	msg, _ := json.Marshal(input)
+	msg, err := json.Marshal(input)
+
+	if err != nil {
+		fmt.Println("JSON unmarshalling error: ", err)
+		return
+	}
 
 	if _, err := conn.Do("LPUSH", queue, string(msg)); err != nil {
 		fmt.Println("Could not write to redis: ", err)
+		return
 	}
 
 	// Read for debug
