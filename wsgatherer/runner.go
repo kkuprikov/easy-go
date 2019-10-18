@@ -26,14 +26,29 @@ func wsUpgrade(w http.ResponseWriter, r *http.Request) (*websocket.Conn, error) 
 	return conn, err
 }
 
-func homePage(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+func testPage(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	http.ServeFile(w, r, "./static/index.html")
+}
+
+func infoPage(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	http.ServeFile(w, r, "./static/info.html")
+}
+
+func spectatorsData(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	data, err := spectatorsTotal()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+
+	w.Write(data)
 }
 
 func Run() {
 	flushSpectators()
 	router := httprouter.New()
-	router.GET("/", homePage)
+	router.GET("/", testPage)
+	router.GET("/info", infoPage)
+	router.GET("/spectators", spectatorsData)
 
 	router.GET("/ws/send_stat/:jwt", statHandler)
 	router.GET("/ws/subscribe/spectators/:id", spectatorHandler)

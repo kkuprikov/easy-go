@@ -11,6 +11,11 @@ import (
 	"github.com/julienschmidt/httprouter"
 )
 
+const (
+	period            = 3
+	periods_to_expire = 3
+)
+
 type params struct {
 	Id    string
 	Count string
@@ -40,7 +45,7 @@ func spectatorProcess(ws *websocket.Conn, id string) {
 }
 
 func spectatorFeed(ws *websocket.Conn, id string) {
-	ticker := time.NewTicker(3 * time.Second)
+	ticker := time.NewTicker(period * time.Second)
 	done := make(chan bool)
 
 	for {
@@ -48,7 +53,7 @@ func spectatorFeed(ws *websocket.Conn, id string) {
 		case <-done:
 			return
 		case <-ticker.C:
-			count, err := spectatorCount(id)
+			count, err := spectatorCount(id, false)
 			if err != nil {
 				fmt.Println("Redis connection error: ", err)
 				return
@@ -74,6 +79,10 @@ func spectatorFeed(ws *websocket.Conn, id string) {
 			if err := ws.WriteMessage(1, res); err != nil {
 				deleteSpectator(id)
 				done <- true
+			} else {
+				conn := redisConn()()
+				conn.Do("EXPIRE", "{realtime_api}spectators_"+id, periods_to_expire*period)
+				conn.Close()
 			}
 		}
 	}
@@ -98,12 +107,42 @@ func flushSpectators() {
 	return
 }
 
-func spectatorCount(id string) (string, error) {
+func spectatorCount(id string, with_prefix bool) (string, error) {
+	var prefix string
+	if with_prefix == false {
+		prefix = "{realtime_api}spectators_"
+	}
 	conn := redisConn()()
 	var err error
 
-	res, err := redis.String(conn.Do("GET", "{realtime_api}spectators_"+id))
+	res, err := redis.String(conn.Do("GET", prefix+id))
 	conn.Close()
 	return res, err
 
+}
+
+func spectatorsTotal() ([]byte, error) {
+	var total = map[string]string{}
+	var err error
+
+	conn := redisConn()()
+
+	keys, err := redis.Strings(conn.Do("KEYS", "{realtime_api}spectators_*"))
+
+	if err != nil {
+		fmt.Println("Redis connection error", err)
+		return nil, err
+	}
+	fmt.Println("KEYS", keys)
+
+	for _, key := range keys {
+		total[key], err = spectatorCount(key, true)
+		if err != nil {
+			fmt.Println("Redis connection error", err)
+			return nil, err
+		}
+	}
+	fmt.Println("TOTAL", total)
+
+	return json.Marshal(total)
 }
