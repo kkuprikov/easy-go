@@ -6,6 +6,6 @@ import (
 	"github.com/julienschmidt/httprouter"
 )
 
-func SpectatorHandler(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
+func spectatorHandler(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
 
 }

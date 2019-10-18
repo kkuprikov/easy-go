@@ -2,7 +2,7 @@ package wsgatherer
 
 import "github.com/gomodule/redigo/redis"
 
-func newPool() *redis.Pool {
+func redisPool() *redis.Pool {
 	return &redis.Pool{
 		MaxIdle:   80,
 		MaxActive: 12000, // max number of connections
@@ -16,8 +16,8 @@ func newPool() *redis.Pool {
 	}
 }
 
-func NewRedisConn() func() redis.Conn {
-	pool := newPool()
+func redisConn() func() redis.Conn {
+	pool := redisPool()
 
 	return func() redis.Conn {
 		c := pool.Get()

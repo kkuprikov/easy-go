@@ -10,30 +10,26 @@ import (
 	"github.com/julienschmidt/httprouter"
 )
 
-func queueDict() func(string) string {
-	innerMap := map[string]string{
-		"heatmap": "heatmap_stats",
-		"default": "realtime_stats",
-	}
-
-	return func(key string) string {
-		return innerMap[key]
-	}
+var queueDict = map[string]string{
+	"heatmap": "heatmap_stats",
+	"default": "realtime_stats",
 }
 
-func StatHandler(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
-	if conn, err := WsUpgrade(w, r); err == nil {
-		go statReader(conn, params.ByName("jwt"))
-	} else {
+func statHandler(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
+	conn, err := wsUpgrade(w, r)
+	if err != nil {
 		fmt.Println(err)
+		return
 	}
+
+	go statReader(conn, params.ByName("jwt"))
 }
 
 func statReader(ws *websocket.Conn, jwtoken string) {
-	var conn = NewRedisConn()()
+	var conn = redisConn()()
 
 	for {
-		var msg map[string]interface{}
+		var msg map[string]string
 
 		if err := ws.ReadJSON(&msg); err != nil {
 			fmt.Println(err)
@@ -42,19 +38,28 @@ func statReader(ws *websocket.Conn, jwtoken string) {
 
 		fmt.Println("Received from client: ", msg["id"])
 
-		data := combineData(jwtoken, msg)
-		storeData(conn, data)
+		if data, err := combineData(jwtoken, msg); err == nil {
+			storeData(conn, data)
+		} else {
+			// close connection
+			ws.Close()
+		}
 	}
 	conn.Close()
 }
 
-func combineData(jwtoken string, input map[string]interface{}) map[string]interface{} {
-	var data map[string]interface{}
+func combineData(jwtoken string, input map[string]string) (map[string]string, error) {
+	var data map[string]string
 
-	inputJSON := ParseJWT(jwtoken)
+	jwtJSON, err := parseJWT(jwtoken)
+	if err != nil {
+		fmt.Println("Token parsing error: ", err)
+		return input, err
+	}
 
-	if err := json.Unmarshal(inputJSON, &data); err != nil {
-		fmt.Println(err)
+	if err = json.Unmarshal(jwtJSON, &data); err != nil {
+		fmt.Println("JSON unmarshalling error: ", err)
+		return input, err
 	}
 
 	fmt.Println(data)
@@ -63,20 +68,20 @@ func combineData(jwtoken string, input map[string]interface{}) map[string]interf
 		input[k] = v
 	}
 
-	return input
+	return input, err
 }
 
-func storeData(conn redis.Conn, input map[string]interface{}) {
+func storeData(conn redis.Conn, input map[string]string) {
 	var queue string
 
-	if event, ok := input["event"].(string); ok {
-		queue = queueDict()(event)
+	if event, ok := input["event"]; ok {
+		queue = queueDict[event]
 	} else {
 		fmt.Println("Type assertion failed: event is not a string", event)
 	}
 
 	if queue == "" {
-		queue = queueDict()("default")
+		queue = queueDict["default"]
 	}
 
 	msg, _ := json.Marshal(input)
