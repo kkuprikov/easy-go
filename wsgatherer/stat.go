@@ -87,7 +87,7 @@ func storeData(conn redis.Conn, input map[string]string) {
 	msg, err := json.Marshal(input)
 
 	if err != nil {
-		fmt.Println("JSON unmarshalling error: ", err)
+		fmt.Println("JSON marshalling error: ", err)
 		return
 	}
 
