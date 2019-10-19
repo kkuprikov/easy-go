@@ -15,14 +15,16 @@ var queueDict = map[string]string{
 	"default": "realtime_stats",
 }
 
-func statHandler(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
-	conn, err := wsUpgrade(w, r)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
+func (s *Server) statHandler() httprouter.Handle {
+	return func(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
+		conn, err := wsUpgrade(w, r)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
 
-	go statReader(conn, params.ByName("jwt"))
+		go statReader(conn, params.ByName("jwt"))
+	}
 }
 
 func statReader(ws *websocket.Conn, jwtoken string) {
@@ -97,9 +99,10 @@ func storeData(conn redis.Conn, input map[string]string) {
 	}
 
 	// Read for debug
-	if res, err := redis.String(conn.Do("LPOP", queue)); err == nil {
-		fmt.Println("Read from redis: ", res)
-	} else {
+	res, err := redis.String(conn.Do("LPOP", queue))
+	if err != nil {
 		fmt.Println("Could not read from redis", err)
+		return
 	}
+	fmt.Println("Read from redis: ", res)
 }

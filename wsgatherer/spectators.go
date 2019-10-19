@@ -27,47 +27,49 @@ type message struct {
 	BroadcastedAt string
 }
 
-func spectatorHandler(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
-	conn, err := wsUpgrade(w, r)
-	if err != nil {
-		fmt.Println(err)
-		return
+func (s *Server) spectatorHandler() httprouter.Handle {
+	conn := s.Db.Get()
+	return func(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
+		ws, err := wsUpgrade(w, r)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		// 1. save spectator
+		// 2. feed back spectators count
+		// 3. when spectator leaves, delete
+		go spectatorProcess(ws, params.ByName("id"), conn)
 	}
-	// 1. save spectator
-	// 2. feed back spectators count
-	// 3. when spectator leaves, delete
-	go spectatorProcess(conn, params.ByName("id"))
 }
 
-func spectatorProcess(ws *websocket.Conn, id string) {
-	saveSpectator(id)
-	spectatorFeed(ws, id)
+func spectatorProcess(ws *websocket.Conn, id string, conn redis.Conn) {
+	saveSpectator(id, conn)
+	spectatorFeed(ws, id, conn)
+	defer conn.Close()
 }
 
-func spectatorFeed(ws *websocket.Conn, id string) {
+func spectatorFeed(ws *websocket.Conn, id string, conn redis.Conn) {
 	ticker := time.NewTicker(period * time.Second)
-	done := make(chan bool)
+	defer ticker.Stop()
 
 	for {
 		select {
-		case <-done:
-			return
 		case <-ticker.C:
-			count, err := spectatorCount(id, false)
+			count, err := spectatorCount(id, false, conn)
 			if err != nil {
 				fmt.Println("Redis connection error: ", err)
 				return
 			}
 
-			var params params
-			var msg message
-
-			params.Id = id
-			params.Count = count
-
-			msg.Message = "spectators"
-			msg.Params = params
-			msg.BroadcastedAt = time.Now().String()
+			params := params{
+				Id:    id,
+				Count: count,
+			}
+			msg := message{
+				Message:       "spectators",
+				Params:        params,
+				BroadcastedAt: time.Now().String(),
+			}
 
 			res, err := json.Marshal(msg)
 
@@ -77,29 +79,25 @@ func spectatorFeed(ws *websocket.Conn, id string) {
 			}
 
 			if err := ws.WriteMessage(1, res); err != nil {
-				deleteSpectator(id)
-				done <- true
-			} else {
-				conn := redisConn()()
-				conn.Do("EXPIRE", "{realtime_api}spectators_"+id, periods_to_expire*period)
-				conn.Close()
+				deleteSpectator(id, conn)
+				return
 			}
+			conn := redisConn()()
+			conn.Do("EXPIRE", "{realtime_api}spectators_"+id, periods_to_expire*period)
+			conn.Close()
+
 		}
 	}
 }
 
-func saveSpectator(id string) {
+func saveSpectator(id string, conn redis.Conn) {
 	fmt.Println("Saving spectator to redis")
-	conn := redisConn()()
 	conn.Do("INCR", "{realtime_api}spectators_"+id)
-	conn.Close()
 }
 
-func deleteSpectator(id string) {
+func deleteSpectator(id string, conn redis.Conn) {
 	fmt.Println("Spectator left")
-	conn := redisConn()()
 	conn.Do("DECR", "{realtime_api}spectators_"+id)
-	conn.Close()
 }
 
 func flushSpectators() {
@@ -107,28 +105,22 @@ func flushSpectators() {
 	return
 }
 
-func spectatorCount(id string, with_prefix bool) (string, error) {
+func spectatorCount(id string, with_prefix bool, conn redis.Conn) (string, error) {
 	var prefix string
 	if with_prefix == false {
 		prefix = "{realtime_api}spectators_"
 	}
-	conn := redisConn()()
-	var err error
 
 	res, err := redis.String(conn.Do("GET", prefix+id))
-	conn.Close()
-	return res, err
+	if err != nil {
+		return "", err
+	}
+	return res, nil
 
 }
 
-func spectatorsTotal() ([]byte, error) {
-	var total = map[string]string{}
-	var err error
-
-	conn := redisConn()()
-
+func spectatorsTotal(conn redis.Conn) ([]byte, error) {
 	keys, err := redis.Strings(conn.Do("KEYS", "{realtime_api}spectators_*"))
-	conn.Close()
 
 	if err != nil {
 		fmt.Println("Redis connection error", err)
@@ -136,8 +128,10 @@ func spectatorsTotal() ([]byte, error) {
 	}
 	fmt.Println("KEYS", keys)
 
+	var total = make(map[string]string, len(keys))
+
 	for _, key := range keys {
-		total[key], err = spectatorCount(key, true)
+		total[key], err = spectatorCount(key, true, conn)
 		if err != nil {
 			fmt.Println("Redis connection error", err)
 			return nil, err
@@ -145,5 +139,10 @@ func spectatorsTotal() ([]byte, error) {
 	}
 	fmt.Println("TOTAL", total)
 
-	return json.Marshal(total)
+	res, err := json.Marshal(total)
+	if err != nil {
+		fmt.Println("JSON marshaling error: ", err)
+		return res, err
+	}
+	return res, nil
 }

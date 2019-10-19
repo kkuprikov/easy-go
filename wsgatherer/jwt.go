@@ -2,6 +2,7 @@ package wsgatherer
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"io/ioutil"
@@ -21,7 +22,6 @@ func hmacSecret() []byte {
 }
 
 func parseJWT(tokenString string) ([]byte, error) {
-	var res []byte
 
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		// Don't forget to validate the alg is what you expect:
@@ -35,20 +35,23 @@ func parseJWT(tokenString string) ([]byte, error) {
 
 	if err != nil {
 		fmt.Println("JWT parsing error: ", err)
-		return res, err
+		return nil, err
 	}
 
 	claims, ok := token.Claims.(jwt.MapClaims)
 
-	if ok && token.Valid {
-		res, err = json.Marshal(claims)
-
-		fmt.Println("Data from JWT to JSON", string(res))
-
-		if err != nil {
-			fmt.Println("JSON marshalling error: ", err)
-		}
+	if !ok || !token.Valid {
+		return nil, errors.New("Invalid JWT token")
 	}
 
-	return res, err
+	res, err := json.Marshal(claims)
+
+	fmt.Println("Data from JWT to JSON", string(res))
+
+	if err != nil {
+		fmt.Println("JSON marshalling error: ", err)
+		return nil, err
+	}
+
+	return res, nil
 }
