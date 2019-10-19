@@ -23,12 +23,11 @@ func (s *Server) statHandler() httprouter.Handle {
 			return
 		}
 
-		go statReader(conn, params.ByName("jwt"))
+		go statReader(conn, params.ByName("jwt"), s.Db.Get())
 	}
 }
 
-func statReader(ws *websocket.Conn, jwtoken string) {
-	var conn = redisConn()()
+func statReader(ws *websocket.Conn, jwtoken string, conn redis.Conn) {
 
 	for {
 		var msg map[string]string

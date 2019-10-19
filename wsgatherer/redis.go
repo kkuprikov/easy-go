@@ -15,12 +15,3 @@ func RedisPool() *redis.Pool {
 		},
 	}
 }
-
-func redisConn() func() redis.Conn {
-	pool := RedisPool()
-
-	return func() redis.Conn {
-		c := pool.Get()
-		return c
-	}
-}

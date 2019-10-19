@@ -82,10 +82,7 @@ func spectatorFeed(ws *websocket.Conn, id string, conn redis.Conn) {
 				deleteSpectator(id, conn)
 				return
 			}
-			conn := redisConn()()
 			conn.Do("EXPIRE", "{realtime_api}spectators_"+id, periods_to_expire*period)
-			conn.Close()
-
 		}
 	}
 }
