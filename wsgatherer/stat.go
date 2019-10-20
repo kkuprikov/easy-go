@@ -17,17 +17,17 @@ var queueDict = map[string]string{
 
 func (s *Server) statHandler() httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
-		conn, err := wsUpgrade(w, r)
+		ws, err := wsUpgrade(w, r)
 		if err != nil {
 			fmt.Println(err)
 			return
 		}
 
-		go statReader(conn, params.ByName("jwt"), s.Db.Get())
+		statReader(ws, params.ByName("jwt"), s.Db)
 	}
 }
 
-func statReader(ws *websocket.Conn, jwtoken string, conn redis.Conn) {
+func statReader(ws *websocket.Conn, jwtoken string, pool *redis.Pool) {
 
 	for {
 		var msg map[string]string
@@ -40,13 +40,12 @@ func statReader(ws *websocket.Conn, jwtoken string, conn redis.Conn) {
 		fmt.Println("Received from client: ", msg["id"])
 
 		if data, err := combineData(jwtoken, msg); err == nil {
-			storeData(conn, data)
+			storeData(pool, data)
 		} else {
 			// close connection
 			ws.Close()
 		}
 	}
-	conn.Close()
 }
 
 func combineData(jwtoken string, input map[string]string) (map[string]string, error) {
@@ -72,7 +71,7 @@ func combineData(jwtoken string, input map[string]string) (map[string]string, er
 	return input, err
 }
 
-func storeData(conn redis.Conn, input map[string]string) {
+func storeData(pool *redis.Pool, input map[string]string) {
 	var queue string
 
 	if event, ok := input["event"]; ok {
@@ -92,13 +91,20 @@ func storeData(conn redis.Conn, input map[string]string) {
 		return
 	}
 
-	if _, err := conn.Do("LPUSH", queue, string(msg)); err != nil {
+	conn := pool.Get()
+	_, err = conn.Do("LPUSH", queue, string(msg))
+	conn.Close()
+
+	if err != nil {
 		fmt.Println("Could not write to redis: ", err)
 		return
 	}
 
+	conn = pool.Get()
 	// Read for debug
 	res, err := redis.String(conn.Do("LPOP", queue))
+	conn.Close()
+
 	if err != nil {
 		fmt.Println("Could not read from redis", err)
 		return

@@ -45,8 +45,7 @@ func (s *Server) infoPage() httprouter.Handle {
 
 func (s *Server) spectatorsData() httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-		conn := s.Db.Get()
-		data, err := spectatorsTotal(conn)
+		data, err := spectatorsTotal(s.Db)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

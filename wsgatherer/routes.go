@@ -5,7 +5,7 @@ import (
 	"net/http"
 )
 
-func Routes(s *Server) {
+func (s *Server) Routes() {
 	s.Router.GET("/", s.testPage())
 	s.Router.GET("/info", s.infoPage())
 	s.Router.GET("/spectators", s.spectatorsData())

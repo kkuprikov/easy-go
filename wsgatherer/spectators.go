@@ -28,7 +28,6 @@ type message struct {
 }
 
 func (s *Server) spectatorHandler() httprouter.Handle {
-	conn := s.Db.Get()
 	return func(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
 		ws, err := wsUpgrade(w, r)
 		if err != nil {
@@ -38,24 +37,23 @@ func (s *Server) spectatorHandler() httprouter.Handle {
 		// 1. save spectator
 		// 2. feed back spectators count
 		// 3. when spectator leaves, delete
-		go spectatorProcess(ws, params.ByName("id"), conn)
+		spectatorProcess(ws, params.ByName("id"), s.Db)
 	}
 }
 
-func spectatorProcess(ws *websocket.Conn, id string, conn redis.Conn) {
-	saveSpectator(id, conn)
-	spectatorFeed(ws, id, conn)
-	defer conn.Close()
+func spectatorProcess(ws *websocket.Conn, id string, pool *redis.Pool) {
+	saveSpectator(id, pool)
+	spectatorFeed(ws, id, pool)
 }
 
-func spectatorFeed(ws *websocket.Conn, id string, conn redis.Conn) {
+func spectatorFeed(ws *websocket.Conn, id string, pool *redis.Pool) {
 	ticker := time.NewTicker(period * time.Second)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ticker.C:
-			count, err := spectatorCount(id, false, conn)
+			count, err := spectatorCount(id, false, pool)
 			if err != nil {
 				fmt.Println("Redis connection error: ", err)
 				return
@@ -79,22 +77,29 @@ func spectatorFeed(ws *websocket.Conn, id string, conn redis.Conn) {
 			}
 
 			if err := ws.WriteMessage(1, res); err != nil {
-				deleteSpectator(id, conn)
+				deleteSpectator(id, pool)
 				return
 			}
+			conn := pool.Get()
 			conn.Do("EXPIRE", "{realtime_api}spectators_"+id, periods_to_expire*period)
+			conn.Close()
 		}
 	}
 }
 
-func saveSpectator(id string, conn redis.Conn) {
+func saveSpectator(id string, pool *redis.Pool) {
+
 	fmt.Println("Saving spectator to redis")
+	conn := pool.Get()
 	conn.Do("INCR", "{realtime_api}spectators_"+id)
+	conn.Close()
 }
 
-func deleteSpectator(id string, conn redis.Conn) {
+func deleteSpectator(id string, pool *redis.Pool) {
+	conn := pool.Get()
 	fmt.Println("Spectator left")
 	conn.Do("DECR", "{realtime_api}spectators_"+id)
+	conn.Close()
 }
 
 func flushSpectators() {
@@ -102,22 +107,27 @@ func flushSpectators() {
 	return
 }
 
-func spectatorCount(id string, with_prefix bool, conn redis.Conn) (string, error) {
+func spectatorCount(id string, with_prefix bool, pool *redis.Pool) (string, error) {
 	var prefix string
+
 	if with_prefix == false {
 		prefix = "{realtime_api}spectators_"
 	}
 
+	conn := pool.Get()
 	res, err := redis.String(conn.Do("GET", prefix+id))
+	conn.Close()
+
 	if err != nil {
 		return "", err
 	}
 	return res, nil
-
 }
 
-func spectatorsTotal(conn redis.Conn) ([]byte, error) {
+func spectatorsTotal(pool *redis.Pool) ([]byte, error) {
+	conn := pool.Get()
 	keys, err := redis.Strings(conn.Do("KEYS", "{realtime_api}spectators_*"))
+	conn.Close()
 
 	if err != nil {
 		fmt.Println("Redis connection error", err)
@@ -128,7 +138,7 @@ func spectatorsTotal(conn redis.Conn) ([]byte, error) {
 	var total = make(map[string]string, len(keys))
 
 	for _, key := range keys {
-		total[key], err = spectatorCount(key, true, conn)
+		total[key], err = spectatorCount(key, true, pool)
 		if err != nil {
 			fmt.Println("Redis connection error", err)
 			return nil, err

@@ -2,12 +2,12 @@ package wsgatherer
 
 import "github.com/gomodule/redigo/redis"
 
-func RedisPool() *redis.Pool {
+func RedisPool(addr string, size int) *redis.Pool {
 	return &redis.Pool{
 		MaxIdle:   80,
-		MaxActive: 12000, // max number of connections
+		MaxActive: size, // max number of connections
 		Dial: func() (redis.Conn, error) {
-			c, err := redis.Dial("tcp", ":6379")
+			c, err := redis.Dial("tcp", addr)
 			if err != nil {
 				panic(err.Error())
 			}
