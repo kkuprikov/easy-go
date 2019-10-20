@@ -1,6 +1,7 @@
 package wsgatherer
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/gomodule/redigo/redis"
@@ -50,6 +51,9 @@ func (s *Server) spectatorsData() httprouter.Handle {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		w.Write(data)
+		_, err = w.Write(data)
+		if err != nil {
+			fmt.Println("Error writing a response: ", err)
+		}
 	}
 }

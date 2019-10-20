@@ -28,7 +28,6 @@ func (s *Server) statHandler() httprouter.Handle {
 }
 
 func statReader(ws *websocket.Conn, jwtoken string, pool *redis.Pool) {
-
 	for {
 		var msg map[string]string
 
@@ -91,23 +90,20 @@ func storeData(pool *redis.Pool, input map[string]string) {
 		return
 	}
 
-	conn := pool.Get()
-	_, err = conn.Do("LPUSH", queue, string(msg))
-	conn.Close()
+	err = SendAndClose(pool, "LPUSH", queue, string(msg))
 
 	if err != nil {
 		fmt.Println("Could not write to redis: ", err)
 		return
 	}
 
-	conn = pool.Get()
 	// Read for debug
-	res, err := redis.String(conn.Do("LPOP", queue))
-	conn.Close()
+	res, err := redis.String(DoAndClose(pool, "LPOP", queue))
 
 	if err != nil {
 		fmt.Println("Could not read from redis", err)
 		return
 	}
+
 	fmt.Println("Read from redis: ", res)
 }
