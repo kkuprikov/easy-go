@@ -38,17 +38,22 @@ func getenvStr(key string) (string, error) {
 	if v == "" {
 		return v, ErrEnvVarEmpty
 	}
+
 	return v, nil
 }
 
 func getenvInt(key string) (int, error) {
 	s, err := getenvStr(key)
+
 	if err != nil {
 		return 0, err
 	}
+
 	v, err := strconv.Atoi(s)
+
 	if err != nil {
 		return 0, err
 	}
+
 	return v, nil
 }

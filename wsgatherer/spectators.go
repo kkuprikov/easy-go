@@ -12,12 +12,12 @@ import (
 )
 
 const (
-	period            = 3
-	periods_to_expire = 3
+	period          = 3
+	periodsToExpire = 3
 )
 
 type params struct {
-	Id    string
+	ID    string
 	Count string
 }
 
@@ -51,8 +51,7 @@ func spectatorFeed(ws *websocket.Conn, id string, pool *redis.Pool) {
 	defer ticker.Stop()
 
 	for {
-		select {
-		case <-ticker.C:
+		for range ticker.C {
 			count, err := spectatorCount(id, false, pool)
 			if err != nil {
 				fmt.Println("Redis connection error: ", err)
@@ -60,7 +59,7 @@ func spectatorFeed(ws *websocket.Conn, id string, pool *redis.Pool) {
 			}
 
 			params := params{
-				Id:    id,
+				ID:    id,
 				Count: count,
 			}
 			msg := message{
@@ -80,33 +79,39 @@ func spectatorFeed(ws *websocket.Conn, id string, pool *redis.Pool) {
 				deleteSpectator(id, pool)
 				return
 			}
-			// conn := pool.Get()
-			SendAndClose(pool, "EXPIRE", "{realtime_api}spectators_"+id, periods_to_expire*period)
-			// conn.Close()
+
+			err = SendAndClose(pool, "EXPIRE", "{realtime_api}spectators_"+id, periodsToExpire*period)
+			if err != nil {
+				fmt.Println("Redis connection error: ", err)
+			}
 		}
 	}
 }
 
 func saveSpectator(id string, pool *redis.Pool) {
-
 	fmt.Println("Saving spectator to redis")
-	DoAndClose(pool, "INCR", "{realtime_api}spectators_"+id)
+
+	_, err := DoAndClose(pool, "INCR", "{realtime_api}spectators_"+id)
+
+	if err != nil {
+		fmt.Println("Redis connection error: ", err)
+	}
 }
 
 func deleteSpectator(id string, pool *redis.Pool) {
 	fmt.Println("Spectator left")
-	DoAndClose(pool, "DECR", "{realtime_api}spectators_"+id)
+
+	_, err := DoAndClose(pool, "DECR", "{realtime_api}spectators_"+id)
+
+	if err != nil {
+		fmt.Println("Redis connection error: ", err)
+	}
 }
 
-func flushSpectators() {
-	// TODO implement or make redis keys expirable
-	return
-}
-
-func spectatorCount(id string, with_prefix bool, pool *redis.Pool) (string, error) {
+func spectatorCount(id string, withPrefix bool, pool *redis.Pool) (string, error) {
 	var prefix string
 
-	if with_prefix == false {
+	if !withPrefix {
 		prefix = "{realtime_api}spectators_"
 	}
 
@@ -115,6 +120,7 @@ func spectatorCount(id string, with_prefix bool, pool *redis.Pool) (string, erro
 	if err != nil {
 		return "", err
 	}
+
 	return res, nil
 }
 
@@ -122,9 +128,10 @@ func spectatorsTotal(pool *redis.Pool) ([]byte, error) {
 	keys, err := redis.Strings(DoAndClose(pool, "KEYS", "{realtime_api}spectators_*"))
 
 	if err != nil {
-		fmt.Println("Redis connection error", err)
+		fmt.Println("Redis connection error: ", err)
 		return nil, err
 	}
+
 	fmt.Println("KEYS", keys)
 
 	var total = make(map[string]string, len(keys))
@@ -132,10 +139,11 @@ func spectatorsTotal(pool *redis.Pool) ([]byte, error) {
 	for _, key := range keys {
 		total[key], err = spectatorCount(key, true, pool)
 		if err != nil {
-			fmt.Println("Redis connection error", err)
+			fmt.Println("Redis connection error: ", err)
 			return nil, err
 		}
 	}
+
 	fmt.Println("TOTAL", total)
 
 	res, err := json.Marshal(total)
@@ -143,5 +151,6 @@ func spectatorsTotal(pool *redis.Pool) ([]byte, error) {
 		fmt.Println("JSON marshaling error: ", err)
 		return res, err
 	}
+
 	return res, nil
 }

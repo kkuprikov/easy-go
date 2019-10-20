@@ -28,7 +28,6 @@ func (s *Server) statHandler() httprouter.Handle {
 }
 
 func statReader(ws *websocket.Conn, jwtoken string, pool *redis.Pool) {
-
 	for {
 		var msg map[string]string
 
@@ -105,5 +104,6 @@ func storeData(pool *redis.Pool, input map[string]string) {
 		fmt.Println("Could not read from redis", err)
 		return
 	}
+
 	fmt.Println("Read from redis: ", res)
 }

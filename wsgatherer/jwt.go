@@ -22,7 +22,6 @@ func hmacSecret() []byte {
 }
 
 func parseJWT(tokenString string) ([]byte, error) {
-
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		// Don't forget to validate the alg is what you expect:
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
@@ -41,7 +40,7 @@ func parseJWT(tokenString string) ([]byte, error) {
 	claims, ok := token.Claims.(jwt.MapClaims)
 
 	if !ok || !token.Valid {
-		return nil, errors.New("Invalid JWT token")
+		return nil, errors.New("invalid JWT token")
 	}
 
 	res, err := json.Marshal(claims)

@@ -18,14 +18,24 @@ func RedisPool(addr string, size int) *redis.Pool {
 
 func SendAndClose(pool *redis.Pool, command string, args ...interface{}) error {
 	conn := pool.Get()
+	if err := conn.Err(); err != nil {
+		return err
+	}
+
 	err := conn.Send(command, args...)
 	conn.Close()
+
 	return err
 }
 
 func DoAndClose(pool *redis.Pool, command string, args ...interface{}) (reply interface{}, err error) {
 	conn := pool.Get()
+	if err := conn.Err(); err != nil {
+		return nil, err
+	}
+
 	res, err := conn.Do(command, args...)
 	conn.Close()
+
 	return res, err
 }
