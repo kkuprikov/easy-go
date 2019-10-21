@@ -22,20 +22,18 @@ func SendAndClose(pool *redis.Pool, command string, args ...interface{}) error {
 		return err
 	}
 
-	err := conn.Send(command, args...)
-	conn.Close()
+	defer conn.Close()
 
-	return err
+	return conn.Send(command, args...)
 }
 
-func DoAndClose(pool *redis.Pool, command string, args ...interface{}) (reply interface{}, err error) {
+func DoAndClose(pool *redis.Pool, command string, args ...interface{}) (interface{}, error) {
 	conn := pool.Get()
 	if err := conn.Err(); err != nil {
 		return nil, err
 	}
 
-	res, err := conn.Do(command, args...)
-	conn.Close()
+	defer conn.Close()
 
-	return res, err
+	return conn.Do(command, args...)
 }

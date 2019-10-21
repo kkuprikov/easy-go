@@ -50,40 +50,38 @@ func spectatorFeed(ws *websocket.Conn, id string, pool *redis.Pool) {
 	ticker := time.NewTicker(period * time.Second)
 	defer ticker.Stop()
 
-	for {
-		for range ticker.C {
-			count, err := spectatorCount(id, false, pool)
-			if err != nil {
-				fmt.Println("Redis connection error: ", err)
-				return
-			}
+	for range ticker.C {
+		count, err := spectatorCount(id, false, pool)
+		if err != nil {
+			fmt.Println("Redis connection error: ", err)
+			return
+		}
 
-			params := params{
-				ID:    id,
-				Count: count,
-			}
-			msg := message{
-				Message:       "spectators",
-				Params:        params,
-				BroadcastedAt: time.Now().String(),
-			}
+		params := params{
+			ID:    id,
+			Count: count,
+		}
+		msg := message{
+			Message:       "spectators",
+			Params:        params,
+			BroadcastedAt: time.Now().String(),
+		}
 
-			res, err := json.Marshal(msg)
+		res, err := json.Marshal(msg)
 
-			if err != nil {
-				fmt.Println("JSON marshalling error: ", err)
-				return
-			}
+		if err != nil {
+			fmt.Println("JSON marshalling error: ", err)
+			return
+		}
 
-			if err := ws.WriteMessage(1, res); err != nil {
-				deleteSpectator(id, pool)
-				return
-			}
+		if err := ws.WriteMessage(1, res); err != nil {
+			deleteSpectator(id, pool)
+			return
+		}
 
-			err = SendAndClose(pool, "EXPIRE", "{realtime_api}spectators_"+id, periodsToExpire*period)
-			if err != nil {
-				fmt.Println("Redis connection error: ", err)
-			}
+		err = SendAndClose(pool, "EXPIRE", "{realtime_api}spectators_"+id, periodsToExpire*period)
+		if err != nil {
+			fmt.Println("Redis connection error: ", err)
 		}
 	}
 }
