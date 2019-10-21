@@ -6,8 +6,9 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/julienschmidt/httprouter"
 	"github.com/kkuprikov/easy-go/wsgatherer"
+
+	"github.com/julienschmidt/httprouter"
 )
 
 func main() {
