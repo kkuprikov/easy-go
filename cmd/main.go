@@ -3,6 +3,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"strconv"
 
@@ -19,6 +20,8 @@ func main() {
 	port, err := getenvStr("REDIS_PORT")
 
 	if err != nil {
+		fmt.Println("Redis port is incorrect, switching to default: ", err)
+
 		port = "6379"
 	}
 
@@ -30,7 +33,7 @@ func main() {
 
 	s.Db = wsgatherer.RedisPool(host+":"+port, size)
 	s.Router = httprouter.New()
-	s.Routes()
+	s.Start()
 }
 
 var errEnvVarEmpty = errors.New("getenv: environment variable empty")
@@ -38,7 +41,7 @@ var errEnvVarEmpty = errors.New("getenv: environment variable empty")
 func getenvStr(key string) (string, error) {
 	v := os.Getenv(key)
 	if v == "" {
-		return v, errEnvVarEmpty
+		return "", errEnvVarEmpty
 	}
 
 	return v, nil

@@ -6,8 +6,8 @@ import (
 	"net/http"
 )
 
-// Routes for our server
-func (s *Server) Routes() {
+// Start method for our server
+func (s *Server) Start() {
 	s.Router.GET("/", s.testPage())
 	s.Router.GET("/info", s.infoPage())
 	s.Router.GET("/spectators", s.spectatorsData())
