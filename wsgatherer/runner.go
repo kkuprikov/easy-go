@@ -1,3 +1,4 @@
+// Package wsgatherer handles websocket connections and provides API for data storing
 package wsgatherer
 
 import (
@@ -13,6 +14,7 @@ const (
 	port = ":1234"
 )
 
+// Server struct holds redis database and httprouter
 type Server struct {
 	Db     *redis.Pool
 	Router *httprouter.Router

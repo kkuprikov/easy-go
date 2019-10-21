@@ -9,5 +9,5 @@ require (
 	github.com/gorilla/websocket v1.4.1
 	github.com/julienschmidt/httprouter v1.3.0
 	github.com/mdempsky/gocode v0.0.0-20190203001940-7fb65232883f // indirect
-	golang.org/x/tools v0.0.0-20191012152004-8de300cfc20a // indirect
+	golang.org/x/tools v0.0.0-20191018212557-ed542cd5b28a // indirect
 )

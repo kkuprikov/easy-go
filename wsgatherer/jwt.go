@@ -1,3 +1,4 @@
+// Package wsgatherer - this file contains JWT logic
 package wsgatherer
 
 import (

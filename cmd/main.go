@@ -1,3 +1,4 @@
+// Package main for program start
 package main
 
 import (
@@ -31,12 +32,12 @@ func main() {
 	s.Routes()
 }
 
-var ErrEnvVarEmpty = errors.New("getenv: environment variable empty")
+var errEnvVarEmpty = errors.New("getenv: environment variable empty")
 
 func getenvStr(key string) (string, error) {
 	v := os.Getenv(key)
 	if v == "" {
-		return v, ErrEnvVarEmpty
+		return v, errEnvVarEmpty
 	}
 
 	return v, nil

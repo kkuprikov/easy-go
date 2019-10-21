@@ -1,3 +1,4 @@
+// Package wsgatherer - this files provides API for saving statistics data
 package wsgatherer
 
 import (
@@ -42,7 +43,7 @@ func statReader(ws *websocket.Conn, jwtoken string, pool *redis.Pool) {
 			storeData(pool, data)
 		} else {
 			// close connection
-			ws.Close()
+			Check(ws.Close)
 		}
 	}
 }
@@ -90,7 +91,7 @@ func storeData(pool *redis.Pool, input map[string]string) {
 		return
 	}
 
-	err = SendAndClose(pool, "LPUSH", queue, string(msg))
+	err = sendAndClose(pool, "LPUSH", queue, string(msg))
 
 	if err != nil {
 		fmt.Println("Could not write to redis: ", err)
@@ -98,7 +99,7 @@ func storeData(pool *redis.Pool, input map[string]string) {
 	}
 
 	// Read for debug
-	res, err := redis.String(DoAndClose(pool, "LPOP", queue))
+	res, err := redis.String(doAndClose(pool, "LPOP", queue))
 
 	if err != nil {
 		fmt.Println("Could not read from redis", err)

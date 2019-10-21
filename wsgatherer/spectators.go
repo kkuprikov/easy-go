@@ -1,3 +1,4 @@
+// Package wsgatherer - this files provides API for saving spectators data
 package wsgatherer
 
 import (
@@ -57,13 +58,13 @@ func spectatorFeed(ws *websocket.Conn, id string, pool *redis.Pool) {
 			return
 		}
 
-		params := params{
+		param := params{
 			ID:    id,
 			Count: count,
 		}
 		msg := message{
 			Message:       "spectators",
-			Params:        params,
+			Params:        param,
 			BroadcastedAt: time.Now().String(),
 		}
 
@@ -74,12 +75,12 @@ func spectatorFeed(ws *websocket.Conn, id string, pool *redis.Pool) {
 			return
 		}
 
-		if err := ws.WriteMessage(1, res); err != nil {
+		if err = ws.WriteMessage(1, res); err != nil {
 			deleteSpectator(id, pool)
 			return
 		}
 
-		err = SendAndClose(pool, "EXPIRE", "{realtime_api}spectators_"+id, periodsToExpire*period)
+		err = sendAndClose(pool, "EXPIRE", "{realtime_api}spectators_"+id, periodsToExpire*period)
 		if err != nil {
 			fmt.Println("Redis connection error: ", err)
 		}
@@ -89,7 +90,7 @@ func spectatorFeed(ws *websocket.Conn, id string, pool *redis.Pool) {
 func saveSpectator(id string, pool *redis.Pool) {
 	fmt.Println("Saving spectator to redis")
 
-	_, err := DoAndClose(pool, "INCR", "{realtime_api}spectators_"+id)
+	_, err := doAndClose(pool, "INCR", "{realtime_api}spectators_"+id)
 
 	if err != nil {
 		fmt.Println("Redis connection error: ", err)
@@ -99,7 +100,7 @@ func saveSpectator(id string, pool *redis.Pool) {
 func deleteSpectator(id string, pool *redis.Pool) {
 	fmt.Println("Spectator left")
 
-	_, err := DoAndClose(pool, "DECR", "{realtime_api}spectators_"+id)
+	_, err := doAndClose(pool, "DECR", "{realtime_api}spectators_"+id)
 
 	if err != nil {
 		fmt.Println("Redis connection error: ", err)
@@ -113,7 +114,7 @@ func spectatorCount(id string, withPrefix bool, pool *redis.Pool) (string, error
 		prefix = "{realtime_api}spectators_"
 	}
 
-	res, err := redis.String(DoAndClose(pool, "GET", prefix+id))
+	res, err := redis.String(doAndClose(pool, "GET", prefix+id))
 
 	if err != nil {
 		return "", err
@@ -123,7 +124,7 @@ func spectatorCount(id string, withPrefix bool, pool *redis.Pool) (string, error
 }
 
 func spectatorsTotal(pool *redis.Pool) ([]byte, error) {
-	keys, err := redis.Strings(DoAndClose(pool, "KEYS", "{realtime_api}spectators_*"))
+	keys, err := redis.Strings(doAndClose(pool, "KEYS", "{realtime_api}spectators_*"))
 
 	if err != nil {
 		fmt.Println("Redis connection error: ", err)

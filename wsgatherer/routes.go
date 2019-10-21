@@ -1,3 +1,4 @@
+// Package wsgatherer routes
 package wsgatherer
 
 import (
@@ -5,6 +6,7 @@ import (
 	"net/http"
 )
 
+// Routes for our server
 func (s *Server) Routes() {
 	s.Router.GET("/", s.testPage())
 	s.Router.GET("/info", s.infoPage())
