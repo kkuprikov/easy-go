@@ -2,10 +2,13 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
+	"os/signal"
 	"strconv"
+	"syscall"
 
 	"github.com/kkuprikov/easy-go/wsgatherer"
 
@@ -13,6 +16,8 @@ import (
 )
 
 func main() {
+	ctx, cancelFunc := context.WithCancel(context.Background())
+
 	s := &wsgatherer.Server{}
 
 	host, _ := getenvStr("REDIS_HOST")
@@ -33,7 +38,16 @@ func main() {
 
 	s.Db = wsgatherer.RedisPool(host+":"+port, size)
 	s.Router = httprouter.New()
-	s.Start()
+	s.Start(ctx)
+
+	termChan := make(chan os.Signal)
+	signal.Notify(termChan, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)
+
+	<-termChan
+	fmt.Println("Shutdown signal received")
+	cancelFunc() // Signal cancellation to context.Context
+
+	fmt.Println("All workers done, shutting down!")
 }
 
 var errEnvVarEmpty = errors.New("getenv: environment variable empty")

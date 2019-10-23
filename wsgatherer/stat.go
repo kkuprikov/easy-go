@@ -2,6 +2,7 @@
 package wsgatherer
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -16,7 +17,7 @@ var queueDict = map[string]string{
 	"default": "realtime_stats",
 }
 
-func (s *Server) statHandler() httprouter.Handle {
+func (s *Server) statHandler(ctx context.Context) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
 		ws, err := wsUpgrade(w, r)
 		if err != nil {
@@ -24,26 +25,32 @@ func (s *Server) statHandler() httprouter.Handle {
 			return
 		}
 
-		statReader(ws, params.ByName("jwt"), s.Db)
+		statReader(ws, params.ByName("jwt"), s.Db, ctx)
 	}
 }
 
-func statReader(ws *websocket.Conn, jwtoken string, pool *redis.Pool) {
+func statReader(ws *websocket.Conn, jwtoken string, pool *redis.Pool, ctx context.Context) {
 	for {
-		var msg map[string]string
-
-		if err := ws.ReadJSON(&msg); err != nil {
-			fmt.Println(err)
-			break
-		}
-
-		fmt.Println("Received from client: ", msg["id"])
-
-		if data, err := combineData(jwtoken, msg); err == nil {
-			storeData(pool, data)
-		} else {
-			// close connection
+		select {
+		case <-ctx.Done():
+			//gracefully close connection
 			Check(ws.Close)
+		default:
+			var msg map[string]string
+
+			if err := ws.ReadJSON(&msg); err != nil {
+				fmt.Println(err)
+				break
+			}
+
+			fmt.Println("Received from client: ", msg["id"])
+
+			if data, err := combineData(jwtoken, msg); err == nil {
+				storeData(pool, data)
+			} else {
+				// close connection
+				Check(ws.Close)
+			}
 		}
 	}
 }

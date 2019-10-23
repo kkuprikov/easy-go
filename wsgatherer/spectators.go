@@ -2,6 +2,7 @@
 package wsgatherer
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -28,7 +29,7 @@ type message struct {
 	BroadcastedAt string
 }
 
-func (s *Server) spectatorHandler() httprouter.Handle {
+func (s *Server) spectatorHandler(ctx context.Context) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
 		ws, err := wsUpgrade(w, r)
 		if err != nil {
@@ -38,51 +39,58 @@ func (s *Server) spectatorHandler() httprouter.Handle {
 		// 1. save spectator
 		// 2. feed back spectators count
 		// 3. when spectator leaves, delete
-		spectatorProcess(ws, params.ByName("id"), s.Db)
+		spectatorProcess(ws, params.ByName("id"), s.Db, ctx, r.Context())
 	}
 }
 
-func spectatorProcess(ws *websocket.Conn, id string, pool *redis.Pool) {
+func spectatorProcess(ws *websocket.Conn, id string, pool *redis.Pool, ctx context.Context, reqCtx context.Context) {
 	saveSpectator(id, pool)
-	spectatorFeed(ws, id, pool)
+	spectatorFeed(ws, id, pool, ctx, reqCtx)
 }
 
-func spectatorFeed(ws *websocket.Conn, id string, pool *redis.Pool) {
+func spectatorFeed(ws *websocket.Conn, id string, pool *redis.Pool, ctx context.Context, reqCtx context.Context) {
 	ticker := time.NewTicker(period * time.Second)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		count, err := spectatorCount(id, false, pool)
-		if err != nil {
-			fmt.Println("Redis connection error: ", err)
-			return
-		}
-
-		param := params{
-			ID:    id,
-			Count: count,
-		}
-		msg := message{
-			Message:       "spectators",
-			Params:        param,
-			BroadcastedAt: time.Now().String(),
-		}
-
-		res, err := json.Marshal(msg)
-
-		if err != nil {
-			fmt.Println("JSON marshalling error: ", err)
-			return
-		}
-
-		if err = ws.WriteMessage(1, res); err != nil {
+	for {
+		select {
+		case <-ctx.Done():
+		case <-reqCtx.Done():
+			fmt.Println("ctx.Done() in spectatorFeed")
 			deleteSpectator(id, pool)
-			return
-		}
+		case <-ticker.C:
+			count, err := spectatorCount(id, false, pool)
+			if err != nil {
+				fmt.Println("Redis connection error: ", err)
+				return
+			}
 
-		err = sendAndClose(pool, "EXPIRE", "{realtime_api}spectators_"+id, periodsToExpire*period)
-		if err != nil {
-			fmt.Println("Redis connection error: ", err)
+			param := params{
+				ID:    id,
+				Count: count,
+			}
+			msg := message{
+				Message:       "spectators",
+				Params:        param,
+				BroadcastedAt: time.Now().String(),
+			}
+
+			res, err := json.Marshal(msg)
+
+			if err != nil {
+				fmt.Println("JSON marshalling error: ", err)
+				return
+			}
+
+			if err = ws.WriteMessage(1, res); err != nil {
+				deleteSpectator(id, pool)
+				return
+			}
+
+			err = sendAndClose(pool, "EXPIRE", "{realtime_api}spectators_"+id, periodsToExpire*period)
+			if err != nil {
+				fmt.Println("Redis connection error: ", err)
+			}
 		}
 	}
 }
