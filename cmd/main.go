@@ -38,7 +38,7 @@ func main() {
 
 	s.Db = wsgatherer.RedisPool(host+":"+port, size)
 	s.Router = httprouter.New()
-	s.Start(ctx)
+	go s.Start(ctx)
 
 	termChan := make(chan os.Signal)
 	signal.Notify(termChan, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)

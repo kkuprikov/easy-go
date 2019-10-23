@@ -39,25 +39,41 @@ func (s *Server) spectatorHandler(ctx context.Context) httprouter.Handle {
 		// 1. save spectator
 		// 2. feed back spectators count
 		// 3. when spectator leaves, delete
-		spectatorProcess(ws, params.ByName("id"), s.Db, ctx, r.Context())
+		reqCtx, cancel := context.WithCancel(r.Context())
+		r = r.WithContext(reqCtx)
+		go readControl(cancel, ws)
+		spectatorProcess(ctx, r.Context(), ws, params.ByName("id"), s.Db)
 	}
 }
 
-func spectatorProcess(ws *websocket.Conn, id string, pool *redis.Pool, ctx context.Context, reqCtx context.Context) {
-	saveSpectator(id, pool)
-	spectatorFeed(ws, id, pool, ctx, reqCtx)
+func readControl(cancel func(), ws *websocket.Conn) {
+	for {
+		if _, _, err := ws.NextReader(); err != nil {
+			fmt.Println("Client left, cancelling context...")
+			cancel()
+			Check(ws.Close)
+			break
+		}
+	}
 }
 
-func spectatorFeed(ws *websocket.Conn, id string, pool *redis.Pool, ctx context.Context, reqCtx context.Context) {
+func spectatorProcess(ctx context.Context, reqCtx context.Context, ws *websocket.Conn, id string, pool *redis.Pool) {
+	saveSpectator(id, pool)
+	spectatorFeed(ctx, reqCtx, ws, id, pool)
+}
+
+func spectatorFeed(ctx context.Context, reqCtx context.Context, ws *websocket.Conn, id string, pool *redis.Pool) {
 	ticker := time.NewTicker(period * time.Second)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
+			fallthrough
 		case <-reqCtx.Done():
 			fmt.Println("ctx.Done() in spectatorFeed")
 			deleteSpectator(id, pool)
+			return
 		case <-ticker.C:
 			count, err := spectatorCount(id, false, pool)
 			if err != nil {
@@ -83,7 +99,6 @@ func spectatorFeed(ws *websocket.Conn, id string, pool *redis.Pool, ctx context.
 			}
 
 			if err = ws.WriteMessage(1, res); err != nil {
-				deleteSpectator(id, pool)
 				return
 			}
 

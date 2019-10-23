@@ -25,32 +25,46 @@ func (s *Server) statHandler(ctx context.Context) httprouter.Handle {
 			return
 		}
 
-		statReader(ws, params.ByName("jwt"), s.Db, ctx)
+		reqCtx, cancel := context.WithCancel(r.Context())
+		r = r.WithContext(reqCtx)
+
+		statReader(ctx, r.Context(), cancel, ws, params.ByName("jwt"), s.Db)
 	}
 }
 
-func statReader(ws *websocket.Conn, jwtoken string, pool *redis.Pool, ctx context.Context) {
+func statReader(ctx context.Context, reqCtx context.Context, cancel func(), ws *websocket.Conn, jwtoken string, pool *redis.Pool) {
 	for {
+	FirstSelect:
 		select {
+		case <-reqCtx.Done():
+			fallthrough
 		case <-ctx.Done():
 			//gracefully close connection
+			fmt.Println("ctx.Done() in statReader")
 			Check(ws.Close)
+			return
 		default:
 			var msg map[string]string
 
 			if err := ws.ReadJSON(&msg); err != nil {
-				fmt.Println(err)
-				break
+				switch err.(type) {
+				case *websocket.CloseError:
+					cancel()
+					break FirstSelect
+				default:
+					fmt.Println("Error while reading JSON from client: ", err)
+					return
+				}
 			}
 
 			fmt.Println("Received from client: ", msg["id"])
+			data, err := combineData(jwtoken, msg)
 
-			if data, err := combineData(jwtoken, msg); err == nil {
-				storeData(pool, data)
-			} else {
-				// close connection
-				Check(ws.Close)
+			if err != nil {
+				fmt.Println("Error when combining data: ", err)
+				return
 			}
+			storeData(pool, data)
 		}
 	}
 }
