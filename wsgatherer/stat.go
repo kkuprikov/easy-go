@@ -37,7 +37,6 @@ func statReader(ctx context.Context, reqCtx context.Context, cancel func(), ws *
 	FirstSelect:
 		select {
 		case <-reqCtx.Done():
-			fallthrough
 		case <-ctx.Done():
 			//gracefully close connection
 			fmt.Println("ctx.Done() in statReader")

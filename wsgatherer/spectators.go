@@ -69,7 +69,6 @@ func spectatorFeed(ctx context.Context, reqCtx context.Context, ws *websocket.Co
 	for {
 		select {
 		case <-ctx.Done():
-			fallthrough
 		case <-reqCtx.Done():
 			fmt.Println("ctx.Done() in spectatorFeed")
 			deleteSpectator(id, pool)
