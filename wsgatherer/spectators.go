@@ -68,9 +68,13 @@ func spectatorFeed(ctx context.Context, reqCtx context.Context, ws *websocket.Co
 
 	for {
 		select {
+		//delete spectator on ctx.Done() or reqCtx.Done()
 		case <-ctx.Done():
-		case <-reqCtx.Done():
 			fmt.Println("ctx.Done() in spectatorFeed")
+			deleteSpectator(id, pool)
+			return
+		case <-reqCtx.Done():
+			fmt.Println("reqCtx.Done() in spectatorFeed")
 			deleteSpectator(id, pool)
 			return
 		case <-ticker.C:
