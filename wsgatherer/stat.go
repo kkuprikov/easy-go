@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/kkuprikov/easy-go/jcontext"
+
 	"github.com/gomodule/redigo/redis"
 	"github.com/gorilla/websocket"
 	"github.com/julienschmidt/httprouter"
@@ -25,10 +27,7 @@ func (s *Server) statHandler(ctx context.Context) httprouter.Handle {
 			return
 		}
 
-		reqCtx, cancel1 := context.WithCancel(r.Context())
-		defer cancel1()
-		r = r.WithContext(reqCtx)
-		joinCtx, cancel := Join(ctx, r.Context())
+		joinCtx, cancel := jcontext.Join(ctx, r.Context())
 		defer cancel()
 		statReader(joinCtx, cancel, ws, params.ByName("jwt"), s.Db)
 	}

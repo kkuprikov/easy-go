@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/kkuprikov/easy-go/jcontext"
+
 	"github.com/gomodule/redigo/redis"
 	"github.com/gorilla/websocket"
 	"github.com/julienschmidt/httprouter"
@@ -39,10 +41,9 @@ func (s *Server) spectatorHandler(ctx context.Context) httprouter.Handle {
 		// 1. save spectator
 		// 2. feed back spectators count
 		// 3. when spectator leaves, delete
-		reqCtx, cancel1 := context.WithCancel(r.Context())
-		defer cancel1()
-		r = r.WithContext(reqCtx)
-		joinCtx, cancel := Join(ctx, r.Context())
+
+		joinCtx, cancel := jcontext.Join(ctx, r.Context())
+
 		defer cancel()
 
 		go readControl(cancel, ws)

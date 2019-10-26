@@ -1,5 +1,5 @@
-// Package wsgatherer - this file contains logic for joining contexts
-package wsgatherer
+// Package jcontext - this file contains logic for joining contexts
+package jcontext
 
 import (
 	"context"
