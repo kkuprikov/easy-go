@@ -25,50 +25,55 @@ func (s *Server) statHandler(ctx context.Context) httprouter.Handle {
 			return
 		}
 
-		reqCtx, cancel := context.WithCancel(r.Context())
+		reqCtx, cancel1 := context.WithCancel(r.Context())
+		defer cancel1()
 		r = r.WithContext(reqCtx)
-
-		statReader(ctx, r.Context(), cancel, ws, params.ByName("jwt"), s.Db)
+		joinCtx, cancel := Join(ctx, r.Context())
+		defer cancel()
+		statReader(joinCtx, cancel, ws, params.ByName("jwt"), s.Db)
 	}
 }
 
-func statReader(ctx context.Context, reqCtx context.Context, cancel func(), ws *websocket.Conn, jwtoken string, pool *redis.Pool) {
+func statReader(ctx context.Context, cancel func(), ws *websocket.Conn, jwtoken string, pool *redis.Pool) {
 	for {
-	FirstSelect:
 		select {
 		//gracefully close connection on ctx.Done() or reqCtx.Done()
-		case <-reqCtx.Done():
-			fmt.Println("reqCtx.Done() in statReader")
-			Check(ws.Close)
-			return
 		case <-ctx.Done():
 			fmt.Println("ctx.Done() in statReader")
 			Check(ws.Close)
+
 			return
 		default:
-			var msg map[string]string
-
-			if err := ws.ReadJSON(&msg); err != nil {
-				switch err.(type) {
-				case *websocket.CloseError:
-					cancel()
-					break FirstSelect
-				default:
-					fmt.Println("Error while reading JSON from client: ", err)
-					return
-				}
-			}
-
-			fmt.Println("Received from client: ", msg["id"])
-			data, err := combineData(jwtoken, msg)
-
-			if err != nil {
-				fmt.Println("Error when combining data: ", err)
-				return
-			}
-			storeData(pool, data)
+			readData(cancel, ws, jwtoken, pool)
 		}
 	}
+}
+
+func readData(cancel func(), ws *websocket.Conn, jwtoken string, pool *redis.Pool) {
+	var msg map[string]string
+
+	if err := ws.ReadJSON(&msg); err != nil {
+		switch err.(type) {
+		case *websocket.CloseError:
+			fmt.Println("Websocket close error: ", err)
+			cancel()
+
+			return
+		default:
+			fmt.Println("Error while reading JSON from client: ", err)
+			return
+		}
+	}
+
+	fmt.Println("Received from client: ", msg["id"])
+	data, err := combineData(jwtoken, msg)
+
+	if err != nil {
+		fmt.Println("Error when combining data: ", err)
+		return
+	}
+
+	storeData(pool, data)
 }
 
 func combineData(jwtoken string, input map[string]string) (map[string]string, error) {

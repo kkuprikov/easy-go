@@ -39,43 +39,44 @@ func (s *Server) spectatorHandler(ctx context.Context) httprouter.Handle {
 		// 1. save spectator
 		// 2. feed back spectators count
 		// 3. when spectator leaves, delete
-		reqCtx, cancel := context.WithCancel(r.Context())
+		reqCtx, cancel1 := context.WithCancel(r.Context())
+		defer cancel1()
 		r = r.WithContext(reqCtx)
+		joinCtx, cancel := Join(ctx, r.Context())
+		defer cancel()
+
 		go readControl(cancel, ws)
-		spectatorProcess(ctx, r.Context(), ws, params.ByName("id"), s.Db)
+		spectatorProcess(joinCtx, ws, params.ByName("id"), s.Db)
 	}
 }
 
 func readControl(cancel func(), ws *websocket.Conn) {
 	for {
 		if _, _, err := ws.NextReader(); err != nil {
-			fmt.Println("Client left, cancelling context...")
+			fmt.Println("Client left, canceling context...")
 			cancel()
 			Check(ws.Close)
-			break
+
+			return
 		}
 	}
 }
 
-func spectatorProcess(ctx context.Context, reqCtx context.Context, ws *websocket.Conn, id string, pool *redis.Pool) {
+func spectatorProcess(ctx context.Context, ws *websocket.Conn, id string, pool *redis.Pool) {
 	saveSpectator(id, pool)
-	spectatorFeed(ctx, reqCtx, ws, id, pool)
+	spectatorFeed(ctx, ws, id, pool)
 }
 
-func spectatorFeed(ctx context.Context, reqCtx context.Context, ws *websocket.Conn, id string, pool *redis.Pool) {
+func spectatorFeed(ctx context.Context, ws *websocket.Conn, id string, pool *redis.Pool) {
 	ticker := time.NewTicker(period * time.Second)
 	defer ticker.Stop()
+	defer deleteSpectator(id, pool)
 
 	for {
 		select {
 		//delete spectator on ctx.Done() or reqCtx.Done()
 		case <-ctx.Done():
 			fmt.Println("ctx.Done() in spectatorFeed")
-			deleteSpectator(id, pool)
-			return
-		case <-reqCtx.Done():
-			fmt.Println("reqCtx.Done() in spectatorFeed")
-			deleteSpectator(id, pool)
 			return
 		case <-ticker.C:
 			count, err := spectatorCount(id, false, pool)
@@ -102,12 +103,14 @@ func spectatorFeed(ctx context.Context, reqCtx context.Context, ws *websocket.Co
 			}
 
 			if err = ws.WriteMessage(1, res); err != nil {
+				fmt.Println("Can't write message to websocket: ", err)
 				return
 			}
 
 			err = sendAndClose(pool, "EXPIRE", "{realtime_api}spectators_"+id, periodsToExpire*period)
 			if err != nil {
 				fmt.Println("Redis connection error: ", err)
+				return
 			}
 		}
 	}
