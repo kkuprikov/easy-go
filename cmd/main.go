@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"sync"
 	"syscall"
 
 	"github.com/kkuprikov/easy-go/wsgatherer"
@@ -18,10 +19,10 @@ import (
 func main() {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 
+	var wg sync.WaitGroup
+
 	s := &wsgatherer.Server{}
-
 	host, _ := getenvStr("REDIS_HOST")
-
 	port, err := getenvStr("REDIS_PORT")
 
 	if err != nil {
@@ -39,7 +40,7 @@ func main() {
 	s.Db = wsgatherer.RedisPool(host+":"+port, size)
 	s.Router = httprouter.New()
 
-	go s.Start(ctx)
+	go s.Start(ctx, &wg)
 
 	termChan := make(chan os.Signal, 1)
 	signal.Notify(termChan, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)
@@ -47,6 +48,7 @@ func main() {
 	<-termChan
 	fmt.Println("Shutdown signal received")
 	cancelFunc() // Signal cancellation to context.Context
+	wg.Wait()
 
 	fmt.Println("All workers done, shutting down!")
 }

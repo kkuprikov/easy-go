@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/kkuprikov/easy-go/jcontext"
@@ -31,8 +32,10 @@ type message struct {
 	BroadcastedAt string
 }
 
-func (s *Server) spectatorHandler(ctx context.Context) httprouter.Handle {
+func (s *Server) spectatorHandler(ctx context.Context, wg *sync.WaitGroup) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
+		wg.Add(1)
+		defer wg.Done()
 		ws, err := wsUpgrade(w, r)
 		if err != nil {
 			fmt.Println(err)
@@ -56,7 +59,6 @@ func readControl(cancel func(), ws *websocket.Conn) {
 		if _, _, err := ws.NextReader(); err != nil {
 			fmt.Println("Client left, canceling context...")
 			cancel()
-			Check(ws.Close)
 
 			return
 		}
@@ -78,11 +80,16 @@ func spectatorFeed(ctx context.Context, ws *websocket.Conn, id string, pool *red
 		//delete spectator on ctx.Done() or reqCtx.Done()
 		case <-ctx.Done():
 			fmt.Println("ctx.Done() in spectatorFeed")
+
+			writeControl(ws)
+			Check(ws.Close)
+
 			return
 		case <-ticker.C:
 			count, err := spectatorCount(id, false, pool)
 			if err != nil {
 				fmt.Println("Redis connection error: ", err)
+
 				return
 			}
 
