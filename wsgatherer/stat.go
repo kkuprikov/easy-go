@@ -2,9 +2,12 @@
 package wsgatherer
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
+
+	"github.com/kkuprikov/easy-go/jcontext"
 
 	"github.com/gomodule/redigo/redis"
 	"github.com/gorilla/websocket"
@@ -16,7 +19,7 @@ var queueDict = map[string]string{
 	"default": "realtime_stats",
 }
 
-func (s *Server) statHandler() httprouter.Handle {
+func (s *Server) statHandler(ctx context.Context) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
 		ws, err := wsUpgrade(w, r)
 		if err != nil {
@@ -24,28 +27,52 @@ func (s *Server) statHandler() httprouter.Handle {
 			return
 		}
 
-		statReader(ws, params.ByName("jwt"), s.Db)
+		joinCtx, cancel := jcontext.Join(ctx, r.Context())
+		defer cancel()
+		statReader(joinCtx, cancel, ws, params.ByName("jwt"), s.Db)
 	}
 }
 
-func statReader(ws *websocket.Conn, jwtoken string, pool *redis.Pool) {
+func statReader(ctx context.Context, cancel func(), ws *websocket.Conn, jwtoken string, pool *redis.Pool) {
 	for {
-		var msg map[string]string
-
-		if err := ws.ReadJSON(&msg); err != nil {
-			fmt.Println(err)
-			break
-		}
-
-		fmt.Println("Received from client: ", msg["id"])
-
-		if data, err := combineData(jwtoken, msg); err == nil {
-			storeData(pool, data)
-		} else {
-			// close connection
+		select {
+		//gracefully close connection on ctx.Done() or reqCtx.Done()
+		case <-ctx.Done():
+			fmt.Println("ctx.Done() in statReader")
 			Check(ws.Close)
+
+			return
+		default:
+			readData(cancel, ws, jwtoken, pool)
 		}
 	}
+}
+
+func readData(cancel func(), ws *websocket.Conn, jwtoken string, pool *redis.Pool) {
+	var msg map[string]string
+
+	if err := ws.ReadJSON(&msg); err != nil {
+		switch err.(type) {
+		case *websocket.CloseError:
+			fmt.Println("Websocket close error: ", err)
+			cancel()
+
+			return
+		default:
+			fmt.Println("Error while reading JSON from client: ", err)
+			return
+		}
+	}
+
+	fmt.Println("Received from client: ", msg["id"])
+	data, err := combineData(jwtoken, msg)
+
+	if err != nil {
+		fmt.Println("Error when combining data: ", err)
+		return
+	}
+
+	storeData(pool, data)
 }
 
 func combineData(jwtoken string, input map[string]string) (map[string]string, error) {
