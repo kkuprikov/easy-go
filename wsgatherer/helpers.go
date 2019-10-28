@@ -19,7 +19,9 @@ func readJSON(ws *websocket.Conn) (map[string]string, error) {
 }
 
 func writeControl(ws *websocket.Conn) {
-	err := ws.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseGoingAway, ""), time.Time{})
+	err := ws.WriteControl(websocket.CloseMessage,
+		websocket.FormatCloseMessage(websocket.CloseServiceRestart, ""),
+		time.Time{})
 	if err != nil {
 		fmt.Println("Can't write message to websocket: ", err)
 		return
