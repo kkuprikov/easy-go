@@ -54,17 +54,6 @@ func (s *Server) spectatorHandler(ctx context.Context, wg *sync.WaitGroup) httpr
 	}
 }
 
-func readControl(cancel func(), ws *websocket.Conn) {
-	for {
-		if _, _, err := ws.NextReader(); err != nil {
-			fmt.Println("Client left, canceling context...")
-			cancel()
-
-			return
-		}
-	}
-}
-
 func spectatorProcess(ctx context.Context, ws *websocket.Conn, id string, pool *redis.Pool) {
 	saveSpectator(id, pool)
 	spectatorFeed(ctx, ws, id, pool)
