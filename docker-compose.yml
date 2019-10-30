@@ -1,0 +1,36 @@
+version: "3.2"
+
+networks:
+  proxy:
+    external: false
+
+services:
+  haproxy:
+    image: eeacms/haproxy
+    depends_on:
+      - wsgatherer
+    ports:
+      - "80:5000"
+      - "1936:1936"
+    environment:
+      BACKENDS: "wsgatherer"
+      DNS_ENABLED: "true"
+      LOG_LEVEL: "info"
+    networks:
+      - proxy
+
+  redis:
+    image: redis:5.0.5
+    command: redis-server
+    networks:
+      - proxy
+
+  wsgatherer:
+    image: wsgatherer:latest
+    command: ./main
+    networks:
+      - proxy
+    environment:
+      - LOG_LEVEL=debug
+    logging:
+      driver: "json-file"

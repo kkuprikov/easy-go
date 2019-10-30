@@ -2,6 +2,7 @@
 package wsgatherer
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -43,6 +44,24 @@ func (s *Server) testPage() httprouter.Handle {
 func (s *Server) infoPage() httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 		http.ServeFile(w, r, "./static/info.html")
+	}
+}
+
+func (s *Server) ready() httprouter.Handle {
+	return func(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+		data := struct{ Status string }{"OK"}
+		resp, err := json.Marshal(data)
+
+		if err != nil {
+			fmt.Println("JSON marshalling error: ", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		_, err = w.Write(resp)
+		if err != nil {
+			fmt.Println("Error writing a response: ", err)
+		}
 	}
 }
 

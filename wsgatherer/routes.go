@@ -12,6 +12,7 @@ import (
 func (s *Server) Start(ctx context.Context, wg *sync.WaitGroup) {
 	s.Router.GET("/", s.testPage())
 	s.Router.GET("/info", s.infoPage())
+	s.Router.GET("/ready", s.ready())
 	s.Router.GET("/spectators", s.spectatorsData())
 
 	s.Router.GET("/ws/send_stat/:jwt", s.statHandler(ctx, wg))
