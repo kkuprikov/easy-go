@@ -6,15 +6,15 @@ networks:
 
 services:
   haproxy:
-    image: eeacms/haproxy
+    build:
+      dockerfile: Dockerfile
+      context: ./haproxy
     depends_on:
       - wsgatherer
     ports:
       - "80:5000"
       - "1936:1936"
     environment:
-      BACKENDS: "wsgatherer"
-      DNS_ENABLED: "true"
       LOG_LEVEL: "info"
     networks:
       - proxy
@@ -26,11 +26,14 @@ services:
       - proxy
 
   wsgatherer:
-    image: wsgatherer:latest
+    build:
+      dockerfile: Dockerfile
+      context: .
     command: ./main
     networks:
       - proxy
     environment:
       - LOG_LEVEL=debug
+      - WSGATHERER_PORT=1234
     logging:
       driver: "json-file"

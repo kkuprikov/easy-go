@@ -2,6 +2,7 @@
 package wsgatherer
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -9,10 +10,6 @@ import (
 	"github.com/gomodule/redigo/redis"
 	"github.com/gorilla/websocket"
 	"github.com/julienschmidt/httprouter"
-)
-
-const (
-	port = ":1234"
 )
 
 // Server struct holds redis database and httprouter
@@ -47,9 +44,18 @@ func (s *Server) infoPage() httprouter.Handle {
 	}
 }
 
-func (s *Server) ready() httprouter.Handle {
+func (s *Server) ready(ctx context.Context) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-		data := struct{ Status string }{"OK"}
+		var data struct {
+			Status string
+		}
+
+		if ctx.Err() != nil {
+			data.Status = "Server shutdown"
+		} else {
+			data.Status = "OK"
+		}
+
 		resp, err := json.Marshal(data)
 
 		if err != nil {

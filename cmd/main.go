@@ -17,18 +17,27 @@ import (
 )
 
 func main() {
-	ctx, cancelFunc := context.WithCancel(context.Background())
-
-	var wg sync.WaitGroup
-
-	s := &wsgatherer.Server{}
-	host, _ := getenvStr("REDIS_HOST")
-	port, err := getenvStr("REDIS_PORT")
+	appPort, err := getenvStr("WSGATHERER_PORT")
 
 	if err != nil {
-		fmt.Println("Redis port is incorrect, switching to default: ", err)
+		fmt.Println("Application port not provided: ", err)
+		return
+	}
 
-		port = "6379"
+	redisHost, err := getenvStr("REDIS_HOST")
+
+	if err != nil {
+		redisHost = "redis"
+		fmt.Println("Redis host not provided, switching to: ", redisHost)
+		fmt.Println("details: ", err)
+	}
+
+	redisPort, err := getenvStr("REDIS_PORT")
+
+	if err != nil {
+		redisPort = "6379"
+		fmt.Println("Redis port not provided, switching to: ", redisPort)
+		fmt.Println("details: ", err)
 	}
 
 	size, err := getenvInt("REDIS_POOL_SIZE")
@@ -37,10 +46,16 @@ func main() {
 		size = 10000
 	}
 
-	s.Db = wsgatherer.RedisPool(host+":"+port, size)
+	ctx, cancelFunc := context.WithCancel(context.Background())
+
+	var wg sync.WaitGroup
+
+	s := &wsgatherer.Server{}
+
+	s.Db = wsgatherer.RedisPool(redisHost+":"+redisPort, size)
 	s.Router = httprouter.New()
 
-	go s.Start(ctx, &wg)
+	go s.Start(ctx, appPort, &wg)
 
 	termChan := make(chan os.Signal, 1)
 	signal.Notify(termChan, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)
