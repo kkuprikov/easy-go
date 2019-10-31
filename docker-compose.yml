@@ -34,6 +34,11 @@ services:
       - proxy
     environment:
       - LOG_LEVEL=debug
-      - WSGATHERER_PORT=1234
+      - WSGATHERER_PORT=1200
+    ports:
+      - "1200:1200"
+      - "1201:1201"
+      - "7000:7000"
+      - "8080:8080"
     logging:
       driver: "json-file"
