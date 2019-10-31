@@ -6,14 +6,15 @@ networks:
 
 services:
   haproxy:
-    image: haproxy:latest
+    image: haproxy:2.0.8
     depends_on:
-      - wsgatherer
+      - wsgatherer-first
+      - wsgatherer-second
     volumes:
       - "~/easy-go/haproxy/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro"
     ports:
-      - "80:5000"
-      - "1936:1936"
+      - "80:8080"
+      - "7000:7000"
     environment:
       LOG_LEVEL: "info"
     networks:
@@ -25,11 +26,12 @@ services:
     networks:
       - proxy
 
-  wsgatherer:
+  wsgatherer-first:
     build:
       dockerfile: Dockerfile
       context: .
-    command: ./main
+    depends_on:
+      - redis
     networks:
       - proxy
     environment:
@@ -37,8 +39,21 @@ services:
       - WSGATHERER_PORT=1200
     ports:
       - "1200:1200"
+    logging:
+      driver: "json-file"
+
+  wsgatherer-second:
+    build:
+      dockerfile: Dockerfile
+      context: .
+    depends_on:
+      - redis
+    networks:
+      - proxy
+    environment:
+      - LOG_LEVEL=debug
+      - WSGATHERER_PORT=1201
+    ports:
       - "1201:1201"
-      - "7000:7000"
-      - "8080:8080"
     logging:
       driver: "json-file"

@@ -32,15 +32,9 @@ func wsUpgrade(w http.ResponseWriter, r *http.Request) (*websocket.Conn, error) 
 	return conn, err
 }
 
-func (s *Server) testPage() httprouter.Handle {
+func (s *Server) assets() httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-		http.ServeFile(w, r, "./static/index.html")
-	}
-}
-
-func (s *Server) infoPage() httprouter.Handle {
-	return func(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-		http.ServeFile(w, r, "./static/info.html")
+		http.FileServer(assetFS())
 	}
 }
 
