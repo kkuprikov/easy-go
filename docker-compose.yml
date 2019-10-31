@@ -6,11 +6,11 @@ networks:
 
 services:
   haproxy:
-    build:
-      dockerfile: Dockerfile
-      context: ./haproxy
+    image: haproxy:latest
     depends_on:
       - wsgatherer
+    volumes:
+      - "~/easy-go/haproxy/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro"
     ports:
       - "80:5000"
       - "1936:1936"
