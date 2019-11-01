@@ -1,4 +1,3 @@
-// Package wsgatherer - this file compiles static files
 package wsgatherer
 
 import (
@@ -8,6 +7,7 @@ import (
 )
 
 func init() {
+
 	// define files
 	file2 := &embedded.EmbeddedFile{
 		Filename:    "index.html",
