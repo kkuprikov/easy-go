@@ -36,3 +36,8 @@ issues:
 
   exclude:
     - queueDict
+  exclude-rules:
+    - linters:
+        - lll
+        - gochecknoinits
+      path: "wsgatherer/rice-box.go"
