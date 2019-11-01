@@ -32,12 +32,6 @@ func wsUpgrade(w http.ResponseWriter, r *http.Request) (*websocket.Conn, error) 
 	return conn, err
 }
 
-func (s *Server) assets() httprouter.Handle {
-	return func(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-		http.FileServer(assetFS())
-	}
-}
-
 func (s *Server) ready(ctx context.Context) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 		var data struct {
