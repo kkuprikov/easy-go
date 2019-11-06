@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sync"
 
 	"github.com/kkuprikov/easy-go/jcontext"
 
@@ -19,8 +20,10 @@ var queueDict = map[string]string{
 	"default": "realtime_stats",
 }
 
-func (s *Server) statHandler(ctx context.Context) httprouter.Handle {
+func (s *Server) statHandler(ctx context.Context, wg *sync.WaitGroup) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
+		wg.Add(1)
+		defer wg.Done()
 		ws, err := wsUpgrade(w, r)
 		if err != nil {
 			fmt.Println(err)
@@ -39,6 +42,7 @@ func statReader(ctx context.Context, cancel func(), ws *websocket.Conn, jwtoken 
 		//gracefully close connection on ctx.Done() or reqCtx.Done()
 		case <-ctx.Done():
 			fmt.Println("ctx.Done() in statReader")
+			writeControl(ws)
 			Check(ws.Close)
 
 			return

@@ -2,16 +2,14 @@
 package wsgatherer
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 
 	"github.com/gomodule/redigo/redis"
 	"github.com/gorilla/websocket"
 	"github.com/julienschmidt/httprouter"
-)
-
-const (
-	port = ":1234"
 )
 
 // Server struct holds redis database and httprouter
@@ -34,15 +32,30 @@ func wsUpgrade(w http.ResponseWriter, r *http.Request) (*websocket.Conn, error) 
 	return conn, err
 }
 
-func (s *Server) testPage() httprouter.Handle {
+func (s *Server) ready(ctx context.Context) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-		http.ServeFile(w, r, "./static/index.html")
-	}
-}
+		var data struct {
+			Status string
+		}
 
-func (s *Server) infoPage() httprouter.Handle {
-	return func(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-		http.ServeFile(w, r, "./static/info.html")
+		if ctx.Err() != nil {
+			data.Status = "Server shutdown"
+		} else {
+			data.Status = "OK"
+		}
+
+		resp, err := json.Marshal(data)
+
+		if err != nil {
+			fmt.Println("JSON marshalling error: ", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		_, err = w.Write(resp)
+		if err != nil {
+			fmt.Println("Error writing a response: ", err)
+		}
 	}
 }
 

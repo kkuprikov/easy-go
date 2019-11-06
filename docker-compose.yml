@@ -1,0 +1,59 @@
+version: "3.2"
+
+networks:
+  proxy:
+    external: false
+
+services:
+  haproxy:
+    image: haproxy:2.0.8
+    depends_on:
+      - wsgatherer-first
+      - wsgatherer-second
+    volumes:
+      - "~/easy-go/haproxy/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro"
+    ports:
+      - "80:8080"
+      - "7000:7000"
+    environment:
+      LOG_LEVEL: "info"
+    networks:
+      - proxy
+
+  redis:
+    image: redis:5.0.5
+    command: redis-server
+    networks:
+      - proxy
+
+  wsgatherer-first:
+    build:
+      dockerfile: Dockerfile
+      context: .
+    depends_on:
+      - redis
+    networks:
+      - proxy
+    environment:
+      - LOG_LEVEL=debug
+      - WSGATHERER_PORT=1200
+    ports:
+      - "1200:1200"
+    logging:
+      driver: "json-file"
+
+  wsgatherer-second:
+    build:
+      dockerfile: Dockerfile
+      context: .
+    depends_on:
+      - redis
+    networks:
+      - proxy
+    environment:
+      - LOG_LEVEL=debug
+      - WSGATHERER_PORT=1201
+    ports:
+      - "1201:1201"
+    logging:
+      driver: "json-file"
